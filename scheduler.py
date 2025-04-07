@@ -19,6 +19,8 @@ class Process:
         self.start = None
         # When the process finishes execution
         self.completion = None
+        # Internal tracking for aging (how long it's waited)
+        self.last_seen = arrival  # when it was last in CPU or added to queue
 
 
 # Function to read from the CSV file I made
@@ -26,12 +28,10 @@ def read_processes(file_path):
     # Empty list to hold all the processes
     processes = []
 
-
     with open(file_path) as file:
         # Read the CSV rows as dictionaries
         reader = csv.DictReader(file)  
         for row in reader:
-
             # Convert each row into a Process object as we defined above and add to the processes list
             p = Process(
                 # Convert the string values from the CSV to integers and put them where they belong in the table
@@ -40,7 +40,6 @@ def read_processes(file_path):
                 int(row['burst']),
                 int(row['priority'])
             )
-
             # append the process to our list of processes
             processes.append(p)
 
@@ -54,6 +53,7 @@ def priority_round_robin(processes, quantum):
     ctx_switches = 0
     complete = []
     queue = [] 
+    aging_threshold = 10  # how many time units before aging kicks in
 
     # First, sort all incoming processes by arrival time as a priority measure
     processes.sort(key=lambda p: p.arrival)
@@ -68,6 +68,13 @@ def priority_round_robin(processes, quantum):
         if not queue:
             time += 1
             continue
+
+        # Apply aging: if a process has waited longer than threshold, improve its priority
+        for proc in queue:
+            wait_duration = time - proc.last_seen
+            if wait_duration >= aging_threshold and proc.priority > 1:
+                proc.priority -= 1
+                proc.last_seen = time  # reset the last_seen after aging adjustment
 
         # Sort queue by priority and arrival (so ties go to earlier arrivals)
         queue.sort(key=lambda p: (p.priority, p.arrival))
@@ -93,6 +100,7 @@ def priority_round_robin(processes, quantum):
 
         # If the current process is not finished yet, put it back in the queue, perfectly simulating Round Robin
         if current.remaining > 0:
+            current.last_seen = time  # mark re-entry time for aging logic
             queue.append(current)
         else:
             # Mark completion time and store it in the finished list
@@ -119,9 +127,9 @@ def calculate_metrics(processes, ctx_switches, total_time, ctx_time=0.5):
 
     # Return a dictionary of rounded metrics
     return {
+        "CPU Utilization": round(1 - (ctx_switches * ctx_time / total_time), 2),
         "Avg Waiting Time": round(total_wait / n, 2),
         "Avg Turnaround Time": round(total_turn / n, 2),
-        "CPU Utilization": round(1 - (ctx_switches * ctx_time / total_time), 2),
         "Throughput": round(n / total_time, 2),
         "Context Switches": ctx_switches
     }
