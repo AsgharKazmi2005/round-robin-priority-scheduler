@@ -1,7 +1,7 @@
 How to run the priority scheduler:
 
 1. Download or clone the repository
-2. Open the folder/repo
+2. Open the folder/repo using VSCode (recommended) or other application with a CMD.
 3. Open a terminal rooted in the home directory of the repository
 4. Run the priority scheduler using the following syntax:
          python scheduler.py proc_list.csv [TIME_QUANTUM]
